@@ -1,34 +1,52 @@
-name: Deploy Flask App
+name: Deploy Flask App to EC2
 
 on:
   push:
     branches:
-      - main
+      - main  # Trigger only on pushes to main branch
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: 🧾 Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up SSH
+      # Set up SSH key and known_hosts
+      - name: 🔐 Set up SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H 54.91.95.16 >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy to EC2
+      # Optional debug step (safe to keep)
+      - name: 🧪 Verify SSH setup
         run: |
-          scp -r ./app ec2-user@54.91.95.16:/home/ec2-user/
-          ssh ec2-user@54.91.95.16 << 'EOF'
+          ls -l ~/.ssh/
+          stat -c "%A %n" ~/.ssh/id_rsa
+
+      # Deploy the app
+      - name: 🚀 Deploy Flask App to EC2
+        run: |
+          echo "Starting deployment to EC2..."
+
+          # Copy all repo files to EC2 target directory
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -r ./app ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/
+
+          # Connect via SSH and restart app
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
             cd /home/ec2-user/app
+            echo "📦 Setting up Python environment..."
             python3 -m venv venv
             source venv/bin/activate
             pip install --upgrade pip
             pip install -r requirements.txt
-            pkill -f "flask run" || true
+
+            echo "🔁 Restarting Flask app..."
+            pkill -f "app.py" || true
             nohup python3 app.py > app.log 2>&1 &
+
+            echo "✅ Deployment complete!"
           EOF

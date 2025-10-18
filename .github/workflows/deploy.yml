@@ -12,6 +12,9 @@ jobs:
     steps:
       - name: 🧾 Checkout repository
         uses: actions/checkout@v4
+      - name: Test SSH connection
+        run: |
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "echo ✅ Connected to EC2 successfully"
 
       # Set up SSH key and known_hosts
       - name: 🔐 Set up SSH

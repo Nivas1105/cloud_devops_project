@@ -12,36 +12,35 @@ jobs:
     steps:
       - name: 🧾 Checkout repository
         uses: actions/checkout@v4
-      - name: Test SSH connection
-        run: |
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "echo ✅ Connected to EC2 successfully"
 
-      # Set up SSH key and known_hosts
+      # 1️⃣ Set up SSH credentials
       - name: 🔐 Set up SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts || (echo "ssh-keyscan failed"; exit 1)
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts || (echo "❌ ssh-keyscan failed"; exit 1)
+          echo "✅ SSH key configured successfully."
 
-      # Optional debug step (safe to keep)
+      # 2️⃣ Verify key and connectivity
       - name: 🧪 Verify SSH setup
         run: |
-          ls -l ~/.ssh/
-          stat -c "%A %n" ~/.ssh/id_rsa
+          echo "Checking SSH files..."
+          ls -la ~/.ssh
+          echo "Testing connection to EC2..."
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "echo ✅ Connected to EC2 successfully"
 
-      # Deploy the app
+      # 3️⃣ Deploy Flask App
       - name: 🚀 Deploy Flask App to EC2
         run: |
-          echo "Starting deployment to EC2..."
-
-          # Copy all repo files to EC2 target directory
+          echo "🚚 Copying files to EC2..."
           scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -r ./app ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/
 
-          # Connect via SSH and restart app
+          echo "⚙️ Setting up Python environment and restarting app..."
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
+            set -e
             cd /home/ec2-user/app
-            echo "📦 Setting up Python environment..."
+            echo "📦 Setting up virtual environment..."
             python3 -m venv venv
             source venv/bin/activate
             pip install --upgrade pip

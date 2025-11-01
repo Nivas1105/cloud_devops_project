@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Weather Dashboard</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, Roboto, "Segoe UI", sans-serif; margin:0; background:#f9fafb; }
+    header{ background: #fff; padding:12px 20px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 8px rgba(0,0,0,0.05); }
+    header h2{ margin:0; color:#333; }
+    #user-info { padding:6px 12px; background:#f3f4f6; border-radius:14px; }
+    button.logout { padding:8px 14px; border-radius:12px; background:#ef4444; color:white; border:none; cursor:pointer; }
+    button.logout:hover { background:#dc2626; }
+    .content{ padding:24px; max-width:1200px; margin:0 auto; }
+    .card{ background:white; padding:20px; border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,0.06); margin-bottom:20px; }
+    #chart{ height:440px; }
+    .chart-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(500px, 1fr)); gap:20px; }
+    .metric-card{ background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:white; padding:20px; border-radius:12px; }
+    .metric-value{ font-size:2.8rem; font-weight:700; margin:8px 0; }
+    .metric-label{ font-size:0.95rem; opacity:0.9; }
+  </style>
+</head>
+<body>
+  <header>
+    <h2>Dallas Weather Dashboard</h2>
+    <div style="display:flex;gap:12px;align-items:center;">
+      <div id="user-info">Loading...</div>
+      <button class="logout" id="logoutBtn">Logout</button>
+    </div>
+  </header>
+
+  <div class="content">
+    <div class="card" id="currentCard">
+      <div style="display:flex;gap:18px;align-items:center;">
+        <img id="weather-icon" src="" alt="icon" style="width:80px;height:80px;display:none;">
+        <div>
+          <div id="weather-text" style="font-size:1.4rem;font-weight:600;">Loading...</div>
+          <div id="weather-temp" style="font-size:2.4rem;font-weight:700;"></div>
+          <div id="weather-location" style="color:#666;">📍 Dallas, Texas</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div id="chart"></div>
+    </div>
+
+    <div class="chart-grid">
+      <div class="card">
+        <div id="windChart" style="height:320px;"></div>
+      </div>
+      <div class="card">
+        <div id="pressureChart" style="height:320px;"></div>
+      </div>
+    </div>
+
+    <div class="chart-grid">
+      <div class="card">
+        <div id="uvChart" style="height:320px;"></div>
+      </div>
+      <div class="card">
+        <div id="precipChart" style="height:320px;"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 16px 0;">Key Metrics</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;">
+        <div class="metric-card">
+          <div class="metric-label">Feels Like</div>
+          <div class="metric-value" id="feelsLike">--</div>
+        </div>
+        <div class="metric-card" style="background:linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+          <div class="metric-label">Wind Speed</div>
+          <div class="metric-value" id="windSpeed">--</div>
+        </div>
+        <div class="metric-card" style="background:linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+          <div class="metric-label">Humidity</div>
+          <div class="metric-value" id="humidity">--</div>
+        </div>
+        <div class="metric-card" style="background:linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+          <div class="metric-label">Visibility</div>
+          <div class="metric-value" id="visibility">--</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function getUserInfo() {
+      try {
+        const res = await fetch('http://localhost:5050/userinfo', { credentials: 'include' });
+        if (res.status === 401) {
+          window.location.href = 'http://localhost:5050/login';
+          return null;
+        }
+        const user = await res.json();
+        document.getElementById('user-info').textContent = (user.email ? '👤 ' + user.email : 'Logged in');
+        return user;
+      } catch (err) {
+        console.error('userinfo error', err);
+        document.getElementById('user-info').textContent = 'User unavailable';
+        return null;
+      }
+    }
+
+    async function getWeatherAndRender() {
+      try {
+        const res = await fetch('http://localhost:5050/forecast', { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to fetch forecast');
+        const data = await res.json();
+
+        const current = data.current;
+        const hourly = data.forecast.forecastday[0].hour;
+
+        document.getElementById('weather-icon').src = "https:" + current.condition.icon;
+        document.getElementById('weather-icon').style.display = 'inline-block';
+        document.getElementById('weather-text').textContent = current.condition.text;
+        document.getElementById('weather-temp').textContent = `${current.temp_c}°C`;
+        document.getElementById('feelsLike').textContent = `${current.feelslike_c}°C`;
+        document.getElementById('windSpeed').textContent = `${current.wind_kph} km/h`;
+        document.getElementById('humidity').textContent = `${current.humidity}%`;
+        document.getElementById('visibility').textContent = `${current.vis_km} km`;
+
+        const times = hourly.map(h => h.time.split(' ')[1]);
+        const temps = hourly.map(h => h.temp_c);
+        const hum = hourly.map(h => h.humidity);
+        const wind = hourly.map(h => h.wind_kph);
+        const pressure = hourly.map(h => h.pressure_mb);
+        const uv = hourly.map(h => h.uv);
+        const precip = hourly.map(h => h.precip_mm);
+        const tempTrace = { x: times, y: temps, name: 'Temp (°C)', type: 'scatter', mode: 'lines+markers', line: { color:'#3b82f6', width:3 }, marker:{size:6} };
+        const humTrace = { x: times, y: hum, name: 'Humidity (%)', type: 'scatter', yaxis:'y2', line: { color:'#10b981', dash:'dot', width:2 }};
+
+        const layout = {
+          title: 'Hourly Forecast - Temperature & Humidity',
+          yaxis:{ title:'Temp (°C)' },
+          yaxis2:{ title:'Humidity (%)', overlaying:'y', side:'right' },
+          margin:{ t:60, b:80 }
+        };
+        Plotly.newPlot('chart', [tempTrace, humTrace], layout, { responsive:true });
+        const windTrace = {
+          x: times,
+          y: wind,
+          type: 'bar',
+          marker: { color: '#f59e0b', opacity: 0.8 },
+          name: 'Wind Speed'
+        };
+        Plotly.newPlot('windChart', [windTrace], {
+          title: 'Wind Speed (km/h)',
+          yaxis: { title: 'km/h' },
+          margin: { t: 60, b: 80 }
+        }, { responsive: true });
+        const pressureTrace = {
+          x: times,
+          y: pressure,
+          type: 'scatter',
+          mode: 'lines',
+          fill: 'tozeroy',
+          line: { color: '#8b5cf6', width: 2 },
+          fillcolor: 'rgba(139, 92, 246, 0.2)',
+          name: 'Pressure'
+        };
+        Plotly.newPlot('pressureChart', [pressureTrace], {
+          title: 'Atmospheric Pressure (mb)',
+          yaxis: { title: 'Pressure (mb)' },
+          margin: { t: 60, b: 80 }
+        }, { responsive: true });
+
+        const uvTrace = {
+          x: times,
+          y: uv,
+          type: 'scatter',
+          mode: 'lines+markers',
+          line: { color: '#ec4899', width: 3 },
+          marker: { size: 8, color: '#ec4899' },
+          name: 'UV Index'
+        };
+        Plotly.newPlot('uvChart', [uvTrace], {
+          title: 'UV Index',
+          yaxis: { title: 'UV Index' },
+          margin: { t: 60, b: 80 }
+        }, { responsive: true });
+
+        const precipTrace = {
+          x: times,
+          y: precip,
+          type: 'bar',
+          marker: {
+            color: precip.map(p => p > 0 ? '#06b6d4' : '#cbd5e1'),
+            opacity: 0.8
+          },
+          name: 'Precipitation'
+        };
+        Plotly.newPlot('precipChart', [precipTrace], {
+          title: 'Precipitation (mm)',
+          yaxis: { title: 'mm' },
+          margin: { t: 60, b: 80 }
+        }, { responsive: true });
+
+      } catch (err) {
+        console.error(err);
+        document.getElementById('currentCard').innerHTML = '<div style="color:#b91c1c">Failed to load weather.</div>';
+      }
+    }
+
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+
+      window.location.href = 'http://localhost:5050/logout';
+    });
+
+    (async function init() {
+      const user = await getUserInfo();
+      if (!user) return;
+      await getWeatherAndRender();
+    })();
+  </script>
+</body>
+</html>

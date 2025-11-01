@@ -1,4 +1,7 @@
 🌤️ Dallas Weather Dashboard
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Nivas1105/cloud_devops_project/main/web-app/Arcitecture_Diagram_Web_App.png" alt="Architecture Diagram" width="700"/>
+</p>
 
 The Dallas Weather Dashboard is a secure, cloud-powered web application that visualizes real-time weather and forecast data for Dallas, Texas.
 It integrates AWS Cognito for user authentication, Flask as the backend authentication proxy, API Gateway + AWS Lambda for weather data APIs, and a modern HTML dashboard for visualization.
